@@ -214,7 +214,7 @@ const Questionnaire = () => {
   };
 
   return (
-    <div className="min-h-screen p-4 relative overflow-hidden">
+    <div className="min-h-screen p-4 relative overflow-hidden notebook-background">
       <FlowerDecoration />
       
       <div className="max-w-3xl mx-auto relative z-10">
