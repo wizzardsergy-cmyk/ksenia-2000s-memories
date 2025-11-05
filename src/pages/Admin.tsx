@@ -191,10 +191,20 @@ const Admin = () => {
                           🎥 Видеопоздравление:
                         </p>
                         <video
-                          src={q.video_url}
                           controls
                           className="w-full max-w-md mx-auto rounded-lg border-2"
-                        />
+                          preload="metadata"
+                          controlsList="nodownload"
+                        >
+                          <source src={q.video_url} type="video/webm" />
+                          <source src={q.video_url} type="video/mp4" />
+                          <p className="text-sm text-muted-foreground p-4">
+                            Ваш браузер не поддерживает воспроизведение видео. 
+                            <a href={q.video_url} target="_blank" rel="noopener noreferrer" className="text-primary underline ml-1">
+                              Скачать видео
+                            </a>
+                          </p>
+                        </video>
                       </div>
                     )}
 
