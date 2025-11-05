@@ -20,21 +20,21 @@ export type Database = {
           id: string
           submitted_at: string | null
           user_id: string | null
-          video_url: string | null
+          video_url: string
         }
         Insert: {
           answers: Json
           id?: string
           submitted_at?: string | null
           user_id?: string | null
-          video_url?: string | null
+          video_url: string
         }
         Update: {
           answers?: Json
           id?: string
           submitted_at?: string | null
           user_id?: string | null
-          video_url?: string | null
+          video_url?: string
         }
         Relationships: [
           {

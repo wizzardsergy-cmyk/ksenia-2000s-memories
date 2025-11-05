@@ -28,7 +28,8 @@ interface User {
 const questions = [
   "Имя",
   "Сколько тебе лет?",
-  "Из какого ты города?",
+  "Домашний адрес",
+  "Домашний телефон",
   "Любимая еда?",
   "Любимый напиток?",
   "Любимый цвет?",
@@ -189,14 +190,11 @@ const Admin = () => {
                         <p className="font-semibold text-sm mb-2">
                           🎥 Видеопоздравление:
                         </p>
-                        <a
-                          href={q.video_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary hover:underline break-all"
-                        >
-                          {q.video_url}
-                        </a>
+                        <video
+                          src={q.video_url}
+                          controls
+                          className="w-full max-w-md mx-auto rounded-lg border-2"
+                        />
                       </div>
                     )}
 

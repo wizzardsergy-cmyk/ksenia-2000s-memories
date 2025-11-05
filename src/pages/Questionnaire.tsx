@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,11 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import FlowerDecoration from "@/components/FlowerDecoration";
+import { Video, StopCircle, Play } from "lucide-react";
 
 const questions = [
   "Имя",
   "Сколько тебе лет?",
-  "Из какого ты города?",
+  "Домашний адрес",
+  "Домашний телефон",
   "Любимая еда?",
   "Любимый напиток?",
   "Любимый цвет?",
@@ -53,9 +55,14 @@ const questions = [
 const Questionnaire = () => {
   const navigate = useNavigate();
   const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [videoUrl, setVideoUrl] = useState("");
+  const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string>("");
+  const [isRecording, setIsRecording] = useState(false);
   const [loading, setLoading] = useState(false);
   const [userName, setUserName] = useState("");
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     const userId = localStorage.getItem("userId");
@@ -89,6 +96,60 @@ const Questionnaire = () => {
     setAnswers(prev => ({ ...prev, [index]: value }));
   };
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: true, 
+        audio: true 
+      });
+      
+      streamRef.current = stream;
+      
+      if (videoPreviewRef.current) {
+        videoPreviewRef.current.srcObject = stream;
+        videoPreviewRef.current.play();
+      }
+
+      const mediaRecorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        setVideoBlob(blob);
+        const url = URL.createObjectURL(blob);
+        setVideoUrl(url);
+        
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+        if (videoPreviewRef.current) {
+          videoPreviewRef.current.srcObject = null;
+        }
+      };
+
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setIsRecording(true);
+      toast.success("Запись началась! 🎥");
+    } catch (error) {
+      console.error("Recording error:", error);
+      toast.error("Не удалось начать запись. Проверьте разрешения камеры.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      toast.success("Запись остановлена! ✅");
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -109,11 +170,32 @@ const Questionnaire = () => {
       return;
     }
 
+    // Check if video is recorded
+    if (!videoBlob) {
+      toast.error("Пожалуйста, запишите видеопоздравление! 🎥");
+      setLoading(false);
+      return;
+    }
+
     try {
+      // Upload video to storage
+      const fileName = `${userId}-${Date.now()}.webm`;
+      const { error: uploadError } = await supabase.storage
+        .from('video-greetings')
+        .upload(fileName, videoBlob);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('video-greetings')
+        .getPublicUrl(fileName);
+
+      // Insert questionnaire
       const { error } = await supabase.from("questionnaires").insert({
         user_id: userId,
         answers: answers,
-        video_url: videoUrl || null
+        video_url: publicUrl
       });
 
       if (error) throw error;
@@ -179,18 +261,65 @@ const Questionnaire = () => {
 
           <Card className="border-2 flower-pattern">
             <CardContent className="pt-6">
-              <div className="space-y-2">
-                <Label htmlFor="video" className="text-lg font-semibold">
-                  🎥 Ссылка на видеопоздравление (необязательно)
+              <div className="space-y-4">
+                <Label className="text-lg font-semibold flex items-center gap-2">
+                  <Video className="w-5 h-5" />
+                  🎥 Видеопоздравление (обязательно)
                 </Label>
-                <Input
-                  id="video"
-                  type="url"
-                  value={videoUrl}
-                  onChange={(e) => setVideoUrl(e.target.value)}
-                  placeholder="https://youtube.com/..."
-                  className="border-2"
-                />
+                
+                <div className="space-y-4">
+                  <video
+                    ref={videoPreviewRef}
+                    className="w-full max-w-md mx-auto rounded-lg border-4"
+                    controls={!isRecording}
+                    src={videoUrl || undefined}
+                  />
+
+                  <div className="flex gap-2 justify-center">
+                    {!isRecording && !videoBlob && (
+                      <Button
+                        type="button"
+                        onClick={startRecording}
+                        className="gradient-pink border-2 border-white/50"
+                      >
+                        <Play className="w-4 h-4 mr-2" />
+                        Начать запись
+                      </Button>
+                    )}
+
+                    {isRecording && (
+                      <Button
+                        type="button"
+                        onClick={stopRecording}
+                        variant="destructive"
+                        className="border-2"
+                      >
+                        <StopCircle className="w-4 h-4 mr-2" />
+                        Остановить запись
+                      </Button>
+                    )}
+
+                    {videoBlob && !isRecording && (
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          setVideoBlob(null);
+                          setVideoUrl("");
+                          startRecording();
+                        }}
+                        className="gradient-pink border-2 border-white/50"
+                      >
+                        Записать заново
+                      </Button>
+                    )}
+                  </div>
+
+                  {videoBlob && (
+                    <p className="text-center text-sm text-green-600 font-semibold">
+                      ✅ Видео записано!
+                    </p>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
